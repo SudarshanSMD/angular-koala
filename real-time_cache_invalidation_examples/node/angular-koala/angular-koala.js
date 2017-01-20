@@ -1,12 +1,13 @@
 /**
  * angular-koala
  *
+ * Example with node socket.io
  */
 (function () {
     // using the function form of use-strict
     "use strict";
 
-    angular.module('angular-koala', []);
+    angular.module('angular-koala', ['socket.io']);
 
     /**
      * Defining the customCache provider. We are defining provider instead of
@@ -29,7 +30,7 @@
      * Here we will check if the url is configured for caching. If url is configured for caching,
      * cache addition or invalidation is configured, depending upon http verb.
      */
-    angular.module('angular-koala').factory('cacheConfigHttpInterceptor', function ($q, customCache) {
+    angular.module('angular-koala').factory('cacheConfigHttpInterceptor', function ($q, customCache, $socket) {
         //Configuring the url's to be cached.
         //We use cache.removeKeysContaining method to remove the keys for cache. So,
         //every request that has been cached containing that particualar key is removed.
@@ -43,7 +44,6 @@
         var keysToCache = new Set();
         keysToCache.add("/api/v1/endpoint1");
         keysToCache.add("/api/v1/endpoint2");
-
 
         return {
             'request': function (config) {
@@ -61,6 +61,9 @@
                         } else if (config.method === "PUT" || config.method === "PATCH" || config.method === "DELETE") {
                             //console.log("### angular-koala: myHttpInterceptor NEEDS TO INVALIDATE CACHE");
                             customCache.removeKeysContaining(key.toString());
+                            //If node  socket.io starts
+                            $socket.emit('cache-invalidate-key', key.toString());
+                            //If node socket.io ends
                         }
                     }
                 }
@@ -143,5 +146,25 @@
          */
         $httpProvider.interceptors.push('cacheConfigHttpInterceptor');
     }]);
+
+    //If node  socket.io starts
+
+    /**
+     * Setting the node server connection url
+     */
+    angular.module('angular-koala').config(['$socketProvider',  function ($socketProvider) {
+        //#CONFIG: node server connection url
+        $socketProvider.setConnectionUrl('http://localhost:3000');
+    }]);
+
+    /**
+     * Setting action
+     */
+    angular.module('angular-koala').run(function ($socket, customCache) {
+        $socket.on('cache-invalidate-key', function (key) {
+            customCache.removeKeysContaining(key.toString());
+        });
+    });
+    //If node socket.io ends
 
 })();
