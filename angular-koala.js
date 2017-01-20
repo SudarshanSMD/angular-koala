@@ -8,12 +8,12 @@
 
     angular.module('angular-koala', []);
 
-  /**
-   * Defining the customCache provider. We are defining provider instead of
-   * factory or a service, as provider is available during configuration phase
-   * of the app. One could use the customCache provider to set the default $http
-   * cache.
-   */
+    /**
+     * Defining the customCache provider. We are defining provider instead of
+     * factory or a service, as provider is available during configuration phase
+     * of the app. One could use the customCache provider to set the default $http
+     * cache.
+     */
     angular.module('angular-koala').provider('customCache', function customCacheProvider() {
         this.$get = ['$cacheFactory', function customCacheProvider($cacheFactory) {
             if (!$cacheFactory.get('customCache')) {
@@ -25,15 +25,66 @@
     });
 
     /**
-     * Decorator for customCache.
-     * Here wer are mainting a set of 'keys' which enables to have method like getKeys() and removeKeysContaining(),
-     * which are not available in angualr's cache.
-     * getKeys() method could be used to retrive all the keys in cache, and can be used for
-     * custom cache invalidation strategy.
-     *
+     * cacheConfigHttpInterceptor for intercepting the $http request.
+     * Here we will check if the url is configured for caching. If url is configured for caching,
+     * cache addition or invalidation is configured, depending upon http verb.
      */
-    angular.module('angular-koala').config(['$provide', function ($provide) {
+    angular.module('angular-koala').factory('cacheConfigHttpInterceptor', function ($q, customCache) {
+        //Configuring the url's to be cached.
+        //We use cache.removeKeysContaining method to remove the keys for cache. So,
+        //every request that has been cached containing that particualar key is removed.
+        //It is important that API is RESTful.
+        // If your API is not RESTful and you are worried about some api calls not invalidating the cache.
+        // You can also go ahead and use something like key-set pairs, where for a given key,
+        // a set of keys shall be removed from cache. In wihch case, every matching key to be removed should be iterated and
+        // we shall call removeKey() instead of removeKeysContaining() in such case.
 
+        // #CONFIG: url to be cached
+        var keysToCache = new Set();
+        keysToCache.add("/api/v1/workflow");
+        keysToCache.add("/api/v1/organization");
+        keysToCache.add("/api/v1/projects");
+        keysToCache.add("/api/v1/projecttimelines");
+
+        return {
+            'request': function (config) {
+                //TODO: optimize checking of keysToCache in url
+                for (var key of keysToCache) {
+                // check if url contains the key
+                    if (config.url.toString().toLowerCase().indexOf(key.toString().toLowerCase()) !== -1) {
+                        //console.log(config);
+                        if (config.method === "GET") {
+                            //console.log("### angular-koala: myHttpInterceptor GET");
+                            /*
+                             * Modifying the config to mark the CACHE policy.
+                             */
+                            config.cache = customCache;
+                        } else if (config.method === "PUT" || config.method === "PATCH" || config.method === "DELETE") {
+                            //console.log("### angular-koala: myHttpInterceptor NEEDS TO INVALIDATE CACHE");
+                            customCache.removeKeysContaining(key.toString());
+                        }
+                    }
+                }
+                return config;
+            }
+            // you can also itercept: 'requestError', 'response' and 'responseError'
+        };
+    });
+
+
+    /**
+     * Configuring angular-koala module
+     */
+    angular.module('angular-koala').config(['$provide', '$httpProvider', function ($provide, $httpProvider) {
+
+        /**
+         * Decorator for customCache.
+         * Here wer are mainting a set of 'keys' which enables to have method like getKeys() and removeKeysContaining(),
+         * which are not available in angualr's cache.
+         * getKeys() method could be used to retrive all the keys in cache, and can be used for
+         * custom cache invalidation strategy.
+         *
+         */
         // monkey-patching customCache to modify default methods
         $provide.decorator('customCache', [
             '$delegate', function ($delegate) {
@@ -85,58 +136,12 @@
                 return $delegate;
             }
         ]);
-    }]);
 
 
-    /**
-     * cacheConfigHttpInterceptor for intercepting the $http request.
-     * Here we will check if the url is configured for caching. If url is configured for caching,
-     * cache addition or invalidation is configured, depending upon http verb.
-     */
-    angular.module('angular-koala').factory('cacheConfigHttpInterceptor', function ($q, customCache) {
-        //Configuring the url's to be cached.
-        //We use cache.removeKeysContaining method to remove the keys for cache. So,
-        //every request that has been cached containing that particualar key is removed.
-        //It is important that API is RESTful.
-        // If your API is not RESTful and you are worried about some api calls not invalidating the cache.
-        // You can also go ahead and use something like key-set pairs, where for a given key,
-        // a set of keys shall be removed from cache. In wihch case, every matching key to be removed should be iterated and
-        // we shall call removeKey() instead of removeKeysContaining() in such case.
 
-        // CONFIG: url to be cached
-        var keysToCache = new Set();
-        keysToCache.add("/api/v1/endpoint1");
-        keysToCache.add("/api/v1/endpoint2");
-
-        return {
-            'request': function (config) {
-                //TODO: optimize checking of keysToCache in url
-                for (var key of keysToCache) {
-                // check if url contains the key
-                    if (config.url.toString().toLowerCase().indexOf(key.toString().toLowerCase()) !== -1) {
-                        console.log(config);
-                        if (config.method === "GET") {
-                            console.log("### angular-koala: myHttpInterceptor GET");
-                            /*
-                             * Modifying the config to mark the CACHE policy.
-                             */
-                            config.cache = customCache;
-                        } else if (config.method === "PUT" || config.method === "PATCH" || config.method === "DELETE") {
-                            console.log("### angular-koala: myHttpInterceptor NEEDS TO INVALIDATE CACHE");
-                            customCache.removeKeysContaining(key.toString());
-                        }
-                    }
-                }
-                return config;
-            }
-            // you can also itercept: 'requestError', 'response' and 'responseError'
-        };
-    });
-
-    /**
-     * Configuring the module to add iterceptor.
-     */
-    angular.module('angular-koala').config(['$httpProvider', function ($httpProvider) {
+        /**
+         * Configuring the module to add iterceptor.
+         */
         $httpProvider.interceptors.push('cacheConfigHttpInterceptor');
     }]);
 
