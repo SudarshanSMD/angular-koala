@@ -1,9 +1,7 @@
 # angular-koala
 Angular Koala:  api key based cache
 
-Simple way to handle caching at client side.
-
-
+Angular Koala takes a set of key (uri substring) that needs to be cached. Every GET request made to api that has uri which contains key gets caches. Conversely, on every PUT/PATCH/DELETE request, the cache is invalidated.
 
 #Install
 Include angular-koala.js
