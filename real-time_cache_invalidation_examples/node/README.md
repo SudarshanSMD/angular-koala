@@ -3,12 +3,12 @@
 
 ##pubsubserver
 Is node server for managing real-time cache invalidation.
-The functionality of server is very simple. When a client emit 'cache-invalidate-key', the sever broadcasts it to all clients.
+The functionality of server is very simple. When a client emit 'cache-invalidate-key' the sever broadcasts it to all clients.
 
 
 ##angular-koala folder
 
-contains the file to be used if you are using node socket.io in your angular app for real-time caching support.
+Contains the file to be used if you are using node socket.io in your angular app for real-time caching support.
 
 
 

@@ -1,10 +1,8 @@
 /**
  * angular-koala
  *
- * Example with node socket.io
  */
 (function () {
-    // using the function form of use-strict
     "use strict";
 
     angular.module('angular-koala', ['socket.io']);
@@ -31,42 +29,78 @@
      * cache addition or invalidation is configured, depending upon http verb.
      */
     angular.module('angular-koala').factory('cacheConfigHttpInterceptor', function ($q, customCache, $socket) {
-        //Configuring the url's to be cached.
-        //We use cache.removeKeysContaining method to remove the keys for cache. So,
-        //every request that has been cached containing that particualar key is removed.
-        //It is important that API is RESTful.
-        // If your API is not RESTful and you are worried about some api calls not invalidating the cache.
-        // You can also go ahead and use something like key-set pairs, where for a given key,
-        // a set of keys shall be removed from cache. In wihch case, every matching key to be removed should be iterated and
-        // we shall call removeKey() instead of removeKeysContaining() in such case.
+
+        /*
+         * Configuring the url's to be cached.
+         *
+         * We use cache.removeKeysContaining method to remove the keys for cache. So,
+         * every request that has been cached containing that particualar key is removed.
+         *
+         * It is important that API is RESTful.
+         */
 
         // #CONFIG: url to be cached
         var keysToCache = new Set();
         keysToCache.add("/api/v1/endpoint1");
         keysToCache.add("/api/v1/endpoint2");
+        /*
+         * If API with url that is not similar as GET url changes the object, we can use this approach.
+         * Here for a url(key) to be cached on GET request, we are setting array of url's(values) that should
+         * invalidate the key for cache.
+         *
+         *
+         */
+
+        // #CONFIG: url and corresponding values cache policy
+        var myMap = new Map();
+        //       key: url to be cached     values: url's for invalidating key cache
+        myMap.set("/api/v1/endpoint1", ["/api/v1/endpoint1", "/api/v1/outofnowhere/endpoint1"]);
 
         return {
             'request': function (config) {
+
                 //TODO: optimize checking of keysToCache in url
-                for (var key of keysToCache) {
-                // check if url contains the key
+                /*
+                 * For cache policy set in set
+                 */
+                keysToCache.forEach(function (key) {
+                    // check if url contains the key
                     if (config.url.toString().toLowerCase().indexOf(key.toString().toLowerCase()) !== -1) {
-                        //console.log(config);
                         if (config.method === "GET") {
-                            //console.log("### angular-koala: myHttpInterceptor GET");
-                            /*
-                             * Modifying the config to mark the CACHE policy.
-                             */
+                            //Modifying the config to mark the CACHE policy.
                             config.cache = customCache;
                         } else if (config.method === "PUT" || config.method === "PATCH" || config.method === "DELETE") {
-                            //console.log("### angular-koala: myHttpInterceptor NEEDS TO INVALIDATE CACHE");
                             customCache.removeKeysContaining(key.toString());
-                            //If node  socket.io starts
+                            //@@@ If node  socket.io starts
+                            //@@@ CACHE INVALIDATION CALL
                             $socket.emit('cache-invalidate-key', key.toString());
-                            //If node socket.io ends
+                            //@@@ If node socket.io ends
                         }
                     }
-                }
+                });
+
+                /*
+                 * For the cache policy set in map
+                 */
+                myMap.forEach(function (value, key) {
+                    if (config.method === "GET") {
+                        if (config.url.toString().toLowerCase().indexOf(key.toString().toLowerCase()) !== -1) {
+                            //Modifying the config to mark the CACHE policy.
+                            config.cache = customCache;
+                        }
+                    } else if (config.method === "PUT" || config.method === "PATCH" || config.method === "DELETE") {
+                        for (var i = 0; i < value.length; i++) {
+                            if (config.url.toString().toLowerCase().indexOf(value[i].toString().toLowerCase()) !== -1) {
+                                customCache.removeKeysContaining(key.toString());
+                                //@@@ If node  socket.io starts
+                                //@@@ CACHE INVALIDATION CALL
+                                $socket.emit('cache-invalidate-key', key.toString());
+                                //@@@ If node socket.io ends
+                            }
+                        }
+                    }
+                });
+
                 return config;
             }
             // you can also itercept: 'requestError', 'response' and 'responseError'
@@ -147,12 +181,13 @@
         $httpProvider.interceptors.push('cacheConfigHttpInterceptor');
     }]);
 
-    //If node  socket.io starts
+    //@@@ If node  socket.io starts
+    //@@@ REAL TIME CACHE INVALIDATION CONFIGURATION
 
     /**
      * Setting the node server connection url
      */
-    angular.module('angular-koala').config(['$socketProvider',  function ($socketProvider) {
+    angular.module('angular-koala').config(['$socketProvider', function ($socketProvider) {
         //#CONFIG: node server connection url
         $socketProvider.setConnectionUrl('http://localhost:3000');
     }]);
@@ -165,6 +200,6 @@
             customCache.removeKeysContaining(key.toString());
         });
     });
-    //If node socket.io ends
+    //@@@ If node socket.io ends
 
 })();
